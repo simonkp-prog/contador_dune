@@ -15,6 +15,7 @@
 :root{color-scheme:light dark;--bg:light-dark(#efe2c8,#15100b);--card:light-dark(#f8efdc,#211912);--ink:light-dark(#2a1a0e,#f1e4cc);--mute:light-dark(#6e5a44,#b9a68a);--line:light-dark(#d9c6a3,#3a2d21);--spice:light-dark(#c2541b,#ef7a3a);--track:light-dark(#e3d2b0,#2c2219)}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
 .band{padding:clamp(24px,4vw,56px) max(5vw,16px)}
 .wrap{max-width:1240px;margin:0 auto}
@@ -122,6 +123,7 @@ input[type=text],input[type=date],select{font:16px Inter,sans-serif;min-height:4
     <label class="f">Nota (opcional)<input type="text" id="nota" maxlength="140" placeholder="Turno 7, remontada épica"></label>
    </div>
    <label class="tog"><input type="checkbox" id="exp"> Jugamos con la expansión Ixianos y Tleilaxu</label>
+   <label class="tog" id="tecwrap" hidden><input type="checkbox" id="tec"> Las 3 fichas de tecnología contaron como bastión</label>
    <datalist id="jugadores"></datalist>
    <div id="frows"></div>
    <p class="err" id="err" role="alert"></p>
@@ -185,7 +187,9 @@ $('clave').value=LS('dune-clave');
 $('tipo').innerHTML=Object.entries(TIPOS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
 $('frows').innerHTML=F.map(f=>`<div class="frow" data-f="${f.id}"${f.x?' data-x="1" hidden':''}>${dot(f.id)}<label class="nm" for="p-${f.id}">${f.n}</label><input type="text" id="p-${f.id}" list="jugadores" placeholder="Jugador" autocomplete="off"><label class="win"><input type="checkbox" id="w-${f.id}"> Ganó</label></div>`).join('');
 
-function showExp(on){document.querySelectorAll('.frow[data-x]').forEach(r=>r.hidden=!on)}
+function showExp(on){document.querySelectorAll('.frow[data-x]').forEach(r=>r.hidden=!on);showTec()}
+function showTec(){const v=$('exp').checked&&$('tipo').value==='bastiones';$('tecwrap').hidden=!v;if(!v)$('tec').checked=false}
+$('tipo').addEventListener('change',showTec);
 $('exp').addEventListener('change',e=>showExp(e.target.checked));
 
 function openForm(g){
@@ -193,7 +197,7 @@ function openForm(g){
  $('ftitle').textContent=g?'Editar partida':'Nueva partida';
  $('fecha').value=g?.fecha||today();$('tipo').value=g?.tipo||'bastiones';$('nota').value=g?.nota||'';
  const used=Object.fromEntries((g?.jug||[]).map(j=>[j.f,j.p]));const win=new Set(g?.gan||[]);
- const x=!!(used.ixianos||used.tleilaxu);$('exp').checked=x;showExp(x);
+ const x=!!(used.ixianos||used.tleilaxu||g?.tec);$('exp').checked=x;showExp(x);$('tec').checked=!!g?.tec;showTec();
  F.forEach(f=>{$('p-'+f.id).value=used[f.id]||'';$('w-'+f.id).checked=win.has(f.id)});
  $('formsec').hidden=false;$('formsec').scrollIntoView({behavior:'smooth'});
 }
@@ -211,7 +215,7 @@ $('panel').addEventListener('submit',async e=>{
  const names=jug.map(j=>norm(j.p));if(new Set(names).size!==names.length){$('err').textContent='Un mismo jugador aparece en dos facciones.';return}
  const id=editId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
  const old=games.find(g=>g.id===id);
- const g={fecha:$('fecha').value||today(),tipo:$('tipo').value,nota:$('nota').value.trim().slice(0,140),jug,gan,ts:old?.ts||Date.now()};
+ const g={fecha:$('fecha').value||today(),tipo:$('tipo').value,nota:$('nota').value.trim().slice(0,140),tec:$('tec').checked,jug,gan,ts:old?.ts||Date.now()};
  $('guardar').disabled=true;
  LSset('dune-clave',$('clave').value);
  try{await save(id,g);closeForm()}catch(er){$('err').textContent=er.message==='clave'?'La clave del grupo no es correcta.':'No se pudo guardar. Revisa tu conexión e intenta de nuevo.';}
@@ -219,10 +223,11 @@ $('panel').addEventListener('submit',async e=>{
 });
 
 const TL=Object.fromEntries(Object.entries(TIPOS).map(([k,v])=>[v,k]));
-const toSheet=g=>({fecha:g.fecha,tipo:TIPOS[g.tipo]||'',nota:g.nota,creado:g.ts,
+const TEC=' + fichas de tecnología';
+const toSheet=g=>({fecha:g.fecha,tipo:(TIPOS[g.tipo]||'')+(g.tec?TEC:''),nota:g.nota,creado:g.ts,
  ganadores:g.gan.map(f=>FM[f].n),jugadores:g.jug.map(j=>({faccion:FM[j.f].n,jugador:j.p}))});
 const NM=Object.fromEntries(F.map(f=>[f.n,f.id]));
-const fromSheet=r=>({id:String(r.id),fecha:String(r.fecha||''),tipo:TL[r.tipo]||'otro',nota:String(r.nota||''),ts:Number(r.creado)||0,
+const fromSheet=r=>({id:String(r.id),fecha:String(r.fecha||''),tipo:TL[String(r.tipo||'').replace(TEC,'')]||'otro',tec:String(r.tipo||'').includes(TEC),nota:String(r.nota||''),ts:Number(r.creado)||0,
  gan:(r.ganadores||[]).map(n=>NM[n]).filter(Boolean),jug:(r.jugadores||[]).map(j=>({f:NM[j.faccion],p:String(j.jugador)})).filter(j=>j.f)});
 async function api(body){
  const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({...body,clave:$('clave').value||LS('dune-clave')})});
@@ -270,7 +275,7 @@ function render(){
  $('hist').innerHTML=h.length?h.map(g=>{const by=Object.fromEntries(g.jug.map(j=>[j.f,j.p]));const win=new Set(g.gan);
   const w=g.gan.map(f=>`${dot(f)} ${esc(FM[f]?.n)} (${esc(by[f])})`).join(' + ');
   const o=g.jug.filter(j=>!win.has(j.f)).map(j=>`${esc(FM[j.f]?.n)}: ${esc(j.p)}`).join(' · ');
-  return `<div class="game"><time>${fdate(g.fecha)}</time><div><div class="w">${w}</div><div class="o">${esc(TIPOS[g.tipo]||'')}${g.gan.length>1?' en alianza':''}${o?' · También jugaron '+o:''}${g.nota?' · '+esc(g.nota):''}</div></div>${canWrite?`<div class="gacts"><button class="btn ghost sm" data-ed="${esc(g.id)}">Editar</button><button class="btn ghost sm" data-del="${esc(g.id)}">${confirmDel===g.id?'¿Confirmar?':'Borrar'}</button></div>`:''}</div>`}).join(''):'<p class="empty">Sin partidas todavía.</p>';
+  return `<div class="game"><time>${fdate(g.fecha)}</time><div><div class="w">${w}</div><div class="o">${esc(TIPOS[g.tipo]||'')}${g.tec?' (con las 3 fichas de tecnología)':''}${g.gan.length>1?' en alianza':''}${o?' · También jugaron '+o:''}${g.nota?' · '+esc(g.nota):''}</div></div>${canWrite?`<div class="gacts"><button class="btn ghost sm" data-ed="${esc(g.id)}">Editar</button><button class="btn ghost sm" data-del="${esc(g.id)}">${confirmDel===g.id?'¿Confirmar?':'Borrar'}</button></div>`:''}</div>`}).join(''):'<p class="empty">Sin partidas todavía.</p>';
  $('jugadores').innerHTML=pl.map(p=>`<option value="${esc(p.n)}">`).join('');
  $('abrir').hidden=!canWrite;
 }
