@@ -61,7 +61,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 #panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:clamp(16px,3vw,28px);margin-top:20px}
 .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:14px;margin-bottom:18px}
 label.f{display:grid;gap:4px;font-size:14px;font-weight:600}
-input[type=text],input[type=date],select{font:16px Inter,sans-serif;min-height:44px;padding:0 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+input[type=text],input[type=date],input[type=password],select{font:16px Inter,sans-serif;min-height:44px;padding:0 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
 .frow{display:grid;grid-template-columns:14px minmax(0,10em) minmax(0,1fr) auto;gap:12px;align-items:center;padding:6px 0}
 .frow label.nm{font-weight:600}
 .win{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
@@ -212,7 +212,6 @@ $('panel').addEventListener('submit',async e=>{
   if(p)jug.push({f:f.id,p});if(w){if(!p){$('err').textContent=`Marcaste a ${f.n} como ganador, pero falta su jugador.`;return}gan.push(f.id)}}
  if(jug.length<2){$('err').textContent='Ingresa al menos dos jugadores.';return}
  if(!gan.length){$('err').textContent='Marca al menos una facción ganadora.';return}
- const names=jug.map(j=>norm(j.p));if(new Set(names).size!==names.length){$('err').textContent='Un mismo jugador aparece en dos facciones.';return}
  const id=editId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
  const old=games.find(g=>g.id===id);
  const g={fecha:$('fecha').value||today(),tipo:$('tipo').value,nota:$('nota').value.trim().slice(0,140),tec:$('tec').checked,jug,gan,ts:old?.ts||Date.now()};
@@ -248,11 +247,13 @@ function stats(){
  const P={},S=Object.fromEntries(F.map(f=>[f.id,{g:0,w:0,solo:0,al:0}])),pairs={};
  for(const g of games){
   const win=new Set(g.gan||[]);const by=Object.fromEntries((g.jug||[]).map(j=>[j.f,j.p]));
+  const pg={};
   for(const j of g.jug||[]){const s=S[j.f];if(!s)continue;s.g++;const k=norm(j.p);
-   const p=P[k]=P[k]||{n:String(j.p).trim(),g:0,w:0,fw:{}};p.g++;
-   if(win.has(j.f)){s.w++;p.w++;p.fw[j.f]=(p.fw[j.f]||0)+1;win.size>1?s.al++:s.solo++}}
+   P[k]=P[k]||{n:String(j.p).trim(),g:0,w:0,fw:{}};pg[k]=pg[k]||false;
+   if(win.has(j.f)){s.w++;pg[k]=true;P[k].fw[j.f]=(P[k].fw[j.f]||0)+1;win.size>1?s.al++:s.solo++}}
+  for(const k in pg){P[k].g++;if(pg[k])P[k].w++}
   if(win.size>1){const k=[...win].filter(f=>FM[f]).sort().join('+');const pr=pairs[k]=pairs[k]||{n:0,who:{}};pr.n++;
-   const w=[...win].map(f=>by[f]).filter(Boolean).join(' y ');if(w)pr.who[w]=(pr.who[w]||0)+1}
+   const w=[...new Set([...win].map(f=>by[f]).filter(Boolean))].join(' y ');if(w)pr.who[w]=(pr.who[w]||0)+1}
  }
  return {P,S,pairs};
 }
