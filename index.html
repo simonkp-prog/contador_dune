@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dune · Contador de victorias</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: bitácora de mesa entre amigos, con aire de crónica del desierto.
+   IDEA: el registro de un planetólogo de Arrakis: estandartes de cada casa midiendo su dominio.
+   PICTURE: tablero de facciones con barras en los colores de cada casa, sobre un horizonte de dunas.
+   COLOUR and TYPE: arena #efe2c8, tinta #2a1a0e, especia #c2541b; noche #15100b. Cinzel + Inter.
+   LAYOUT: cabecera con dunas, tablero de facciones arriba, luego jugadores, alianzas, registro e historial. */
+:root{color-scheme:light dark;--bg:light-dark(#efe2c8,#15100b);--card:light-dark(#f8efdc,#211912);--ink:light-dark(#2a1a0e,#f1e4cc);--mute:light-dark(#6e5a44,#b9a68a);--line:light-dark(#d9c6a3,#3a2d21);--spice:light-dark(#c2541b,#ef7a3a);--track:light-dark(#e3d2b0,#2c2219)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(24px,4vw,56px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+h1,h2{font-family:Cinzel,Georgia,serif;font-weight:800;line-height:1.05;text-wrap:balance;margin:0}
+h1{font-size:clamp(32px,6vw,52px)}h2{font-size:clamp(24px,3.2vw,32px);margin-bottom:6px}
+.sub{color:var(--mute);margin:4px 0 0}
+header{position:relative;padding-bottom:clamp(70px,9vw,110px)}
+header svg{position:absolute;pointer-events:none;z-index:0;left:0;right:0;bottom:-1px;width:100%;height:clamp(60px,8vw,100px)}
+.hrow{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
+.btn{font:600 16px Inter,sans-serif;border:0;border-radius:10px;padding:0 20px;min-height:44px;cursor:pointer;background:var(--spice);color:#fff8ee}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.sm{min-height:36px;padding:0 12px;font-size:14px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--spice);outline-offset:2px}
+.note{font-size:14px;color:var(--mute)}
+.warn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-top:14px;font-size:14px}
+.dark{background:light-dark(#2a1a0e,#0d0906);color:#f1e4cc}
+.dark .sub,.dark .note{color:#c9b591}
+/* barras */
+.bars{display:grid;gap:12px;margin-top:20px}
+.bar{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) auto;gap:14px;align-items:center}
+.bar b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trk{height:30px;background:var(--track);border-radius:6px;overflow:hidden}
+.dark .trk{background:#2c2219}
+.fill{height:100%;border-radius:6px;display:flex;transition:width .6s ease}
+.fill i{display:block;height:100%}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;min-width:7.5em}
+.num strong{font-size:20px}
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;font-size:14px}
+.legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:#e9dcc2}
+.legend span.al::before{background:repeating-linear-gradient(45deg,#e9dcc2 0 3px,transparent 3px 6px);border:1px solid #e9dcc2}
+.dot{width:14px;height:14px;border-radius:50%;flex:none;display:inline-block}
+/* grids */
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:clamp(24px,4vw,48px)}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:13px;color:var(--mute);font-weight:600}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pair{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.pair .who{flex-basis:100%;font-size:14px;color:var(--mute)}
+.chip{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.cnt{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* formulario */
+#panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:clamp(16px,3vw,28px);margin-top:20px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:14px;margin-bottom:18px}
+label.f{display:grid;gap:4px;font-size:14px;font-weight:600}
+input[type=text],input[type=date],select{font:16px Inter,sans-serif;min-height:44px;padding:0 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+.frow{display:grid;grid-template-columns:14px minmax(0,10em) minmax(0,1fr) auto;gap:12px;align-items:center;padding:6px 0}
+.frow label.nm{font-weight:600}
+.win{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.win input,.tog input{width:22px;height:22px;accent-color:var(--spice)}
+.tog{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:600;cursor:pointer}
+.err{color:light-dark(#a3261a,#ff8b78);font-weight:600;min-height:1.5em;margin:10px 0}
+.acts{display:flex;flex-wrap:wrap;gap:10px}
+/* historial */
+.game{display:grid;grid-template-columns:7.5em minmax(0,1fr) auto;gap:14px;padding:14px 0;border-bottom:1px solid var(--line);align-items:start}
+.game time{font-variant-numeric:tabular-nums;color:var(--mute);white-space:nowrap}
+.game .w{font-weight:600}
+.game .o{font-size:14px;color:var(--mute)}
+.gacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.empty{padding:22px 0;color:var(--mute)}
+@media(max-width:600px){
+ .bar{grid-template-columns:minmax(0,1fr) auto}.bar .trk{grid-column:1/-1;order:3}
+ .frow{grid-template-columns:14px minmax(0,1fr) auto}.frow input[type=text]{grid-column:1/-1}
+ .game{grid-template-columns:minmax(0,1fr)}.gacts{justify-content:flex-start}
+ table{font-size:14px}
+}
+@media(prefers-reduced-motion:reduce){.fill{transition:none}}
+</style>
+</head>
+<body>
+<header class="band">
+ <div class="wrap hrow">
+  <div>
+   <h1>Dune · Contador de victorias</h1>
+   <p class="sub" id="resumen">Cargando partidas…</p>
+  </div>
+  <button class="btn" id="abrir">Registrar partida</button>
+ </div>
+ <div class="wrap"><div id="aviso"></div></div>
+ <svg viewBox="0 0 1200 100" preserveAspectRatio="none" aria-hidden="true">
+  <path d="M0 70 C150 30 300 30 420 60 S700 95 860 55 1100 40 1200 60 V100 H0Z" fill="light-dark(#e2cfa9,#2a1f15)" style="fill:color-mix(in srgb,var(--spice) 22%,var(--bg))"/>
+  <path d="M0 85 C200 60 380 75 560 88 S900 70 1200 82 V100 H0Z" fill="#2a1a0e" style="fill:light-dark(#2a1a0e,#0d0906)"/>
+ </svg>
+</header>
+
+<section class="band dark">
+ <div class="wrap">
+  <h2>Tablero de facciones</h2>
+  <p class="sub">Victorias por facción. El tono pleno es victoria en solitario y el rayado, victoria en alianza.</p>
+  <div class="bars" id="bars"></div>
+  <div class="legend"><span>En solitario</span><span class="al">En alianza</span></div>
+ </div>
+</section>
+
+<section class="band" id="formsec" hidden>
+ <div class="wrap">
+  <h2 id="ftitle">Nueva partida</h2>
+  <p class="sub">Escribe el jugador de cada facción que estuvo en la mesa y marca la facción ganadora. Si ganó una alianza, marca todas las aliadas.</p>
+  <form id="panel" novalidate>
+   <div class="meta">
+    <label class="f">Fecha<input type="date" id="fecha" required></label>
+    <label class="f">Tipo de victoria
+     <select id="tipo"></select></label>
+    <label class="f">Clave del grupo<input type="password" id="clave" autocomplete="off" placeholder="Si el grupo usa clave"></label>
+    <label class="f">Nota (opcional)<input type="text" id="nota" maxlength="140" placeholder="Turno 7, remontada épica"></label>
+   </div>
+   <label class="tog"><input type="checkbox" id="exp"> Jugamos con la expansión Ixianos y Tleilaxu</label>
+   <datalist id="jugadores"></datalist>
+   <div id="frows"></div>
+   <p class="err" id="err" role="alert"></p>
+   <div class="acts">
+    <button class="btn" type="submit" id="guardar">Guardar partida</button>
+    <button class="btn ghost" type="button" id="cancelar">Cancelar</button>
+   </div>
+  </form>
+ </div>
+</section>
+
+<section class="band">
+ <div class="wrap two">
+  <div>
+   <h2>Jugadores</h2>
+   <p class="sub">Ordenados por victorias.</p>
+   <div class="scroll"><table class="stack" id="ptab"><thead><tr><th>Jugador</th><th class="n">Victorias</th><th class="n">Partidas</th><th class="n">% victoria</th><th>Facción favorita</th></tr></thead><tbody></tbody></table></div>
+  </div>
+  <div>
+   <h2>Alianzas ganadoras</h2>
+   <p class="sub">Qué facciones ganaron juntas, cuántas veces y con qué jugadores.</p>
+   <div id="pairs"></div>
+  </div>
+ </div>
+</section>
+
+<section class="band" style="padding-top:0">
+ <div class="wrap">
+  <h2>Historial</h2>
+  <div id="hist"></div>
+ </div>
+</section>
+
+<script>
+/* ⚙️ CONFIGURACIÓN: pega aquí la URL de tu aplicación web de Apps Script (termina en /exec) */
+const API_URL = '';
+{
+const F=[
+ {id:'atreides',n:'Atreides',c:'#2f8a4f'},
+ {id:'harkonnen',n:'Harkonnen',c:'#7b7570'},
+ {id:'emperador',n:'Emperador',c:'#c0322a'},
+ {id:'cofradia',n:'Cofradía Espacial',c:'#e2832b'},
+ {id:'bg',n:'Bene Gesserit',c:'#3a6fc2'},
+ {id:'fremen',n:'Fremen',c:'#d9a521'},
+ {id:'ixianos',n:'Ixianos',c:'#8b7fc4',x:1},
+ {id:'tleilaxu',n:'Tleilaxu',c:'#a0684e',x:1}];
+const FM=Object.fromEntries(F.map(f=>[f.id,f]));
+const TIPOS={bastiones:'Control de bastiones',fremen:'Victoria especial Fremen',cofradia:'Victoria especial Cofradía',bg:'Predicción Bene Gesserit',otro:'Otra'};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=s=>String(s||'').trim().toLowerCase();
+const today=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)};
+const fdate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));return m?`${m[3]}-${m[2]}-${m[1]}`:esc(s)};
+const dot=f=>`<span class="dot" style="background:${FM[f]?.c||'#999'}"></span>`;
+
+let games=[],canWrite=true,editId=null,confirmDel=null,local=!API_URL;
+const LS=k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}};
+const LSset=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+$('clave').value=LS('dune-clave');
+
+$('tipo').innerHTML=Object.entries(TIPOS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+$('frows').innerHTML=F.map(f=>`<div class="frow" data-f="${f.id}"${f.x?' data-x="1" hidden':''}>${dot(f.id)}<label class="nm" for="p-${f.id}">${f.n}</label><input type="text" id="p-${f.id}" list="jugadores" placeholder="Jugador" autocomplete="off"><label class="win"><input type="checkbox" id="w-${f.id}"> Ganó</label></div>`).join('');
+
+function showExp(on){document.querySelectorAll('.frow[data-x]').forEach(r=>r.hidden=!on)}
+$('exp').addEventListener('change',e=>showExp(e.target.checked));
+
+function openForm(g){
+ editId=g?g.id:null;$('err').textContent='';
+ $('ftitle').textContent=g?'Editar partida':'Nueva partida';
+ $('fecha').value=g?.fecha||today();$('tipo').value=g?.tipo||'bastiones';$('nota').value=g?.nota||'';
+ const used=Object.fromEntries((g?.jug||[]).map(j=>[j.f,j.p]));const win=new Set(g?.gan||[]);
+ const x=!!(used.ixianos||used.tleilaxu);$('exp').checked=x;showExp(x);
+ F.forEach(f=>{$('p-'+f.id).value=used[f.id]||'';$('w-'+f.id).checked=win.has(f.id)});
+ $('formsec').hidden=false;$('formsec').scrollIntoView({behavior:'smooth'});
+}
+function closeForm(){$('formsec').hidden=true;editId=null}
+$('abrir').addEventListener('click',()=>openForm());
+$('cancelar').addEventListener('click',closeForm);
+
+$('panel').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const exp=$('exp').checked,jug=[],gan=[];
+ for(const f of F){if(f.x&&!exp)continue;const p=$('p-'+f.id).value.trim().slice(0,40);const w=$('w-'+f.id).checked;
+  if(p)jug.push({f:f.id,p});if(w){if(!p){$('err').textContent=`Marcaste a ${f.n} como ganador, pero falta su jugador.`;return}gan.push(f.id)}}
+ if(jug.length<2){$('err').textContent='Ingresa al menos dos jugadores.';return}
+ if(!gan.length){$('err').textContent='Marca al menos una facción ganadora.';return}
+ const names=jug.map(j=>norm(j.p));if(new Set(names).size!==names.length){$('err').textContent='Un mismo jugador aparece en dos facciones.';return}
+ const id=editId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+ const old=games.find(g=>g.id===id);
+ const g={fecha:$('fecha').value||today(),tipo:$('tipo').value,nota:$('nota').value.trim().slice(0,140),jug,gan,ts:old?.ts||Date.now()};
+ $('guardar').disabled=true;
+ LSset('dune-clave',$('clave').value);
+ try{await save(id,g);closeForm()}catch(er){$('err').textContent=er.message==='clave'?'La clave del grupo no es correcta.':'No se pudo guardar. Revisa tu conexión e intenta de nuevo.';}
+ $('guardar').disabled=false;
+});
+
+const TL=Object.fromEntries(Object.entries(TIPOS).map(([k,v])=>[v,k]));
+const toSheet=g=>({fecha:g.fecha,tipo:TIPOS[g.tipo]||'',nota:g.nota,creado:g.ts,
+ ganadores:g.gan.map(f=>FM[f].n),jugadores:g.jug.map(j=>({faccion:FM[j.f].n,jugador:j.p}))});
+const NM=Object.fromEntries(F.map(f=>[f.n,f.id]));
+const fromSheet=r=>({id:String(r.id),fecha:String(r.fecha||''),tipo:TL[r.tipo]||'otro',nota:String(r.nota||''),ts:Number(r.creado)||0,
+ gan:(r.ganadores||[]).map(n=>NM[n]).filter(Boolean),jug:(r.jugadores||[]).map(j=>({f:NM[j.faccion],p:String(j.jugador)})).filter(j=>j.f)});
+async function api(body){
+ const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({...body,clave:$('clave').value||LS('dune-clave')})});
+ const d=await r.json();if(!d.ok)throw new Error(d.error||'error');
+ games=d.partidas.map(fromSheet).filter(valid);render();
+}
+async function save(id,g){
+ if(!local)return api({accion:'guardar',id,partida:toSheet(g)});
+ const i=games.findIndex(x=>x.id===id);if(i>=0)games[i]={id,...g};else games.push({id,...g});persist();render();
+}
+async function remove(id){
+ if(!local)return api({accion:'borrar',id});
+ games=games.filter(g=>g.id!==id);persist();render();
+}
+function persist(){LSset('dune-partidas',JSON.stringify(games))}
+
+function stats(){
+ const P={},S=Object.fromEntries(F.map(f=>[f.id,{g:0,w:0,solo:0,al:0}])),pairs={};
+ for(const g of games){
+  const win=new Set(g.gan||[]);const by=Object.fromEntries((g.jug||[]).map(j=>[j.f,j.p]));
+  for(const j of g.jug||[]){const s=S[j.f];if(!s)continue;s.g++;const k=norm(j.p);
+   const p=P[k]=P[k]||{n:String(j.p).trim(),g:0,w:0,fw:{}};p.g++;
+   if(win.has(j.f)){s.w++;p.w++;p.fw[j.f]=(p.fw[j.f]||0)+1;win.size>1?s.al++:s.solo++}}
+  if(win.size>1){const k=[...win].filter(f=>FM[f]).sort().join('+');const pr=pairs[k]=pairs[k]||{n:0,who:{}};pr.n++;
+   const w=[...win].map(f=>by[f]).filter(Boolean).join(' y ');if(w)pr.who[w]=(pr.who[w]||0)+1}
+ }
+ return {P,S,pairs};
+}
+
+function render(){
+ const {P,S,pairs}=stats();
+ const n=games.length;const last=[...games].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||b.ts-a.ts)[0];
+ $('resumen').innerHTML=n?`${n} ${n===1?'partida registrada':'partidas registradas'}. Última victoria: <strong>${last.gan.map(f=>esc(FM[f]?.n)).join(' + ')}</strong> el ${fdate(last.fecha)}.`:'Aún no hay partidas. Registra la primera.';
+ const ex=games.some(g=>(g.jug||[]).some(j=>FM[j.f]?.x));
+ const list=F.filter(f=>!f.x||ex||S[f.id].g).sort((a,b)=>S[b.id].w-S[a.id].w||S[b.id].g-S[a.id].g);
+ const max=Math.max(1,...list.map(f=>S[f.id].w));
+ $('bars').innerHTML=list.map(f=>{const s=S[f.id],pct=s.g?Math.round(s.w/s.g*100):0;
+  return `<div class="bar"><b>${dot(f.id)} ${f.n}</b><div class="trk"><div class="fill" style="width:${s.w/max*100}%"><i style="flex:${s.solo};background:${f.c}"></i><i style="flex:${s.al};background:repeating-linear-gradient(45deg,${f.c} 0 6px,color-mix(in srgb,${f.c} 45%,transparent) 6px 12px)"></i></div></div><span class="num"><strong>${s.w}</strong> de ${s.g} · ${pct}%</span></div>`}).join('');
+ const pl=Object.values(P).sort((a,b)=>b.w-a.w||b.w/b.g-a.w/a.g||a.n.localeCompare(b.n));
+ $('ptab').tBodies[0].innerHTML=pl.length?pl.map(p=>{const fav=Object.entries(p.fw).sort((a,b)=>b[1]-a[1])[0];
+  return `<tr><td><strong>${esc(p.n)}</strong></td><td class="n">${p.w}</td><td class="n">${p.g}</td><td class="n">${Math.round(p.w/p.g*100)}%</td><td>${fav?`<span class="chip">${dot(fav[0])}${FM[fav[0]].n} (${fav[1]})</span>`:'—'}</td></tr>`}).join(''):`<tr><td colspan="5" class="empty">Los jugadores aparecerán al registrar partidas.</td></tr>`;
+ const pr=Object.entries(pairs).sort((a,b)=>b[1].n-a[1].n);
+ $('pairs').innerHTML=pr.length?pr.map(([k,v])=>`<div class="pair">${k.split('+').map(f=>`<span class="chip">${dot(f)}${FM[f].n}</span>`).join('<span>+</span>')}<span class="cnt"><strong>${v.n}</strong> ${v.n===1?'victoria':'victorias'}</span><span class="who">${Object.entries(v.who).map(([w,c])=>esc(w)+(c>1?` (${c})`:'')).join(' · ')}</span></div>`).join(''):'<p class="empty">Todavía no hay victorias en alianza.</p>';
+ const h=[...games].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||b.ts-a.ts);
+ $('hist').innerHTML=h.length?h.map(g=>{const by=Object.fromEntries(g.jug.map(j=>[j.f,j.p]));const win=new Set(g.gan);
+  const w=g.gan.map(f=>`${dot(f)} ${esc(FM[f]?.n)} (${esc(by[f])})`).join(' + ');
+  const o=g.jug.filter(j=>!win.has(j.f)).map(j=>`${esc(FM[j.f]?.n)}: ${esc(j.p)}`).join(' · ');
+  return `<div class="game"><time>${fdate(g.fecha)}</time><div><div class="w">${w}</div><div class="o">${esc(TIPOS[g.tipo]||'')}${g.gan.length>1?' en alianza':''}${o?' · También jugaron '+o:''}${g.nota?' · '+esc(g.nota):''}</div></div>${canWrite?`<div class="gacts"><button class="btn ghost sm" data-ed="${esc(g.id)}">Editar</button><button class="btn ghost sm" data-del="${esc(g.id)}">${confirmDel===g.id?'¿Confirmar?':'Borrar'}</button></div>`:''}</div>`}).join(''):'<p class="empty">Sin partidas todavía.</p>';
+ $('jugadores').innerHTML=pl.map(p=>`<option value="${esc(p.n)}">`).join('');
+ $('abrir').hidden=!canWrite;
+}
+
+$('hist').addEventListener('click',async e=>{
+ const ed=e.target.closest('[data-ed]'),del=e.target.closest('[data-del]');
+ if(ed){const g=games.find(x=>x.id===ed.dataset.ed);if(g)openForm(g)}
+ if(del){const id=del.dataset.del;if(confirmDel!==id){confirmDel=id;render();setTimeout(()=>{if(confirmDel===id){confirmDel=null;render()}},4000);return}
+  confirmDel=null;try{await remove(id);$('aviso').innerHTML=''}catch(er){$('aviso').innerHTML=`<p class="warn">${er.message==='clave'?'No se pudo borrar: falta la clave del grupo o no es correcta. Escríbela en el formulario de partida.':'No se pudo borrar la partida. Intenta de nuevo.'}</p>`}}
+});
+
+function useLocal(msg){
+ local=true;try{games=JSON.parse(localStorage.getItem('dune-partidas')||'[]')}catch(e){games=[]}
+ $('aviso').innerHTML=`<p class="warn">${msg}</p>`;render();
+}
+function valid(g){return g&&Array.isArray(g.jug)&&Array.isArray(g.gan)}
+
+render();
+async function cargar(){
+ try{const r=await fetch(API_URL,{cache:'no-store'});const d=await r.json();
+  if(d.ok){games=d.partidas.map(fromSheet).filter(valid);render();$('aviso').innerHTML=''}}
+ catch(e){$('aviso').innerHTML='<p class="warn">No se pudo conectar con la hoja de partidas. Reintentando…</p>';if(!games.length)$('resumen').textContent='Sin conexión con la hoja de partidas.'}
+}
+if(local)useLocal('Falta configurar la conexión con Google Sheets (API_URL): por ahora los datos se guardan solo en este navegador.');
+else{cargar();setInterval(()=>{if(document.visibilityState==='visible'&&$('formsec').hidden)cargar()},30000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')cargar()})}
+}
+</script>
+</body>
+</html>
